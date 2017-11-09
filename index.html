@@ -1,0 +1,238 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+<title>Super-Mario</title>
+<meta charset="utf-8">
+<style>
+body {
+	margin: 0;
+	padding: 0;
+	background-color: #000;
+}
+</style>
+<script src="//cdn.jsdelivr.net/phaser/2.6.2/phaser.min.js"></script>
+</head>
+<body>
+	<script type="text/javascript">
+        
+        var score = 0;
+        var scoreText;
+        var j = 3;
+		var game = new Phaser.Game(256, 240, Phaser.CANVAS, '', {
+			preload : preload,
+			create : create,
+			update : update
+		}, false, false);
+        
+        
+
+		function preload() {
+
+			//   We need this because the assets are on github pages
+			//  Remove the next 2 lines if running locally
+			this.load.baseURL = 'https://sevosmem.github.io/Super-Mario/';
+			this.load.crossOrigin = 'sevosmem';
+
+			this.load.spritesheet('tiles', 'assets/super_mario_tiles.png', 16,
+					16);
+			this.load.spritesheet('goomba', 'assets/goomba.png', 16, 16);
+			this.load.spritesheet('mario', 'assets/mario.png', 16, 16);
+			this.load.spritesheet('coin', 'assets/coin.png', 16, 16);
+            this.load.spritesheet('bonus', 'assets/bonus.png', 16, 16);
+
+			this.load.tilemap('level', 'assets/super_mario_map.json', null,
+					Phaser.Tilemap.TILED_JSON);
+            
+            game.load.audio('superpacman', 'assets/audio/superpacman.ogg');
+            game.load.audio('spmdeath', 'assets/audio/spmdeath.ogg'); 
+            game.load.audio('coinselect', 'assets/audio/coinselect.ogg');
+            game.load.audio('ghostdeath', 'assets/audio/ghostdeath.ogg');
+            game.load.audio('jump', 'assets/audio/jump.ogg');
+            game.load.audio('bonussound', 'assets/audio/bonussound.ogg');
+            game.load.image('pacmanlives', 'assets/pacmanlives.png');
+            
+		}
+
+		function create() {
+            
+            this.music = this.add.audio('superpacman');
+            this.music.play();
+            
+			Phaser.Canvas.setImageRenderingCrisp(game.canvas)
+			game.scale.pageAlignHorizontally = true;
+			game.scale.pageAlignVertically = true
+			game.scale.scaleMode = Phaser.ScaleManager.SHOW_ALL;
+			game.physics.startSystem(Phaser.Physics.ARCADE);
+
+			game.stage.backgroundColor = '#000';
+
+			map = game.add.tilemap('level');
+			map.addTilesetImage('tiles', 'tiles');
+			map.setCollisionBetween(3, 12, true, 'solid');
+
+			map.createLayer('background');
+
+			layer = map.createLayer('solid');
+			layer.resizeWorld();
+
+			coins = game.add.group();
+			coins.enableBody = true;
+			map.createFromTiles(2, null, 'coin', 'stuff', coins);
+			coins.callAll('animations.add', 'animations', 'spin',
+					[ 0, 0, 1, 2 ], 3, true);
+			coins.callAll('animations.play', 'animations', 'spin');
+            
+            bonus = game.add.group();
+            bonus.enableBody = true;
+            map.createFromTiles(6, null, 'bonus', 'stuff', bonus);
+            
+
+			goombas = game.add.group();
+			goombas.enableBody = true;
+			map.createFromTiles(1, null, 'goomba', 'stuff', goombas);
+			goombas.callAll('animations.add', 'animations', 'walk', [ 0, 1 ],
+					2, true);
+			goombas.callAll('animations.play', 'animations', 'walk');
+			goombas.setAll('body.bounce.x', 1);
+			goombas.setAll('body.velocity.x', -20);
+			goombas.setAll('body.gravity.y', 500);
+
+			player = game.add.sprite(16, game.world.height - 48, 'mario');
+			game.physics.arcade.enable(player);
+			player.body.gravity.y = 370;
+			player.body.collideWorldBounds = true;
+			player.animations.add('walkRight', [ 7, 8, 9, 10, 11 ], 10, true);
+			player.animations.add('walkLeft', [ 0, 1, 2, 3, 4 ], 10, true);
+			player.goesRight = true;
+
+			game.camera.follow(player);
+
+			cursors = game.input.keyboard.createCursorKeys();
+            
+            scoreText = this.add.text(8, 8, "score: " + score , { fontSize: '15px', fill: '#FF0000' });
+            scoreText.fixedToCamera = true;
+            
+            
+            spmdeath = game.add.audio('spmdeath');
+            coinselect = game.add.audio('coinselect');
+            ghostdeath = game.add.audio('ghostdeath');
+            jump = game.add.audio('jump');
+            bonussound = game.add.audio('bonussound');
+            
+            lives = game.add.group();
+            livesText = this.add.text(8, 25, 'Lives : ', { font: '15px', fill: '#FF0000' });
+            livesText.fixedToCamera = true;
+            lives.fixedToCamera = true;
+                for (var i = 0; i < j; i++)
+                    {var pacmanlives = lives.create(51 + (20 * i), 23, 'pacmanlives');
+                    }
+            
+            
+		}
+
+		function update() {
+            
+            scoreText.text = 'Score: ' +score;
+            
+			game.physics.arcade.collide(player, layer);
+			game.physics.arcade.collide(goombas, layer);
+			game.physics.arcade.overlap(player, goombas, goombaOverlap);
+			game.physics.arcade.overlap(player, coins, coinOverlap);
+            game.physics.arcade.overlap(player, bonus, bonusOverlap);
+
+			if (player.body.enable) {
+				player.body.velocity.x = 0;
+				if (cursors.left.isDown) {
+					player.body.velocity.x = -90;
+					player.animations.play('walkLeft');
+					player.goesRight = false;
+				} else if (cursors.right.isDown) {
+					player.body.velocity.x = 90;
+					player.animations.play('walkRight');
+					player.goesRight = true;
+				} else {
+					player.animations.stop();
+					if (player.goesRight)
+						player.frame = 7;
+					else
+						player.frame = 0;
+				}
+
+				if (cursors.up.isDown && player.body.onFloor()) {
+					player.body.velocity.y = -190;
+					player.animations.stop();
+                    jump.play();
+				}
+
+				if (player.body.velocity.y != 0) {
+					if (player.goesRight)
+						player.frame = 12;
+					else
+						player.frame = 5;
+				}
+			}
+            
+            
+		}
+
+		function coinOverlap(player, coin) {
+			coin.kill();
+            score += 1;
+            coinselect.play();
+            
+		}
+        
+        function bonusOverlap(blayer, bonus){
+            bonus.kill();
+            score += 10;
+            bonussound.play();
+        }
+
+		function goombaOverlap(player, goomba) {
+			if (player.body.touching.down) {
+				goomba.animations.stop();
+				goomba.frame = 2;
+				goomba.body.enable = false;
+				player.body.velocity.y = -80;
+                ghostdeath.play(); 
+				game.time.events.add(Phaser.Timer.SECOND, function() {
+					goomba.kill();   
+				});
+			} else {
+                live = lives.getFirstAlive();
+                if (live)
+                    {
+                        live.kill();
+                    }
+                if (lives.countLiving() < 1)
+                    {
+                     player.kill();
+                     player.frame = 6;
+				player.body.enable = false;
+				player.animations.stop();
+                spmdeath.play();
+				game.time.events.add(Phaser.Timer.SECOND * 3, function() {
+					game.paused = true;
+                    });
+                    }
+                else {
+                    j--;
+                    goomba.kill();
+                    player.kill();
+                    player.frame = 6;
+				    player.body.enable = false;
+				    player.animations.stop();
+                    spmdeath.play();
+                    score = 0;
+                    game.time.events.add(Phaser.Timer.SECOND * 2, function() {
+                        game.sound.stopAll();
+					    game.state.restart();
+                    });
+                    
+                   
+                }
+			}
+		}
+	</script>
+</body>
+</html>
